@@ -33,9 +33,12 @@ export async function valueGraded(item: CCItem): Promise<ValuedItem> {
     grade = cert.gradeNumber || normaliseGrade(item.gradeNum ?? item.grade) || "";
   } else {
     // alt.xyz doesn't know many CGC certs, so find the card by name and use the slab's own grade.
-    const hit = await findAssetByName(item.itemName);
+    const { hit, nearest } = await findAssetByName(item.itemName);
     grade = normaliseGrade(item.gradeNum ?? item.grade) ?? "";
-    if (!hit || !grade) return insuredOnly(item, "Not found on alt.xyz by cert number or card name");
+    if (!hit || !grade) {
+      const closest = nearest.length ? ` Closest alt.xyz cards: ${nearest.join("; ")}.` : "";
+      return insuredOnly(item, `Not found on alt.xyz by cert number or card name.${closest}`);
+    }
     assetId = hit.id;
     assetName = hit.name ?? item.itemName;
     company = normaliseCompany(item.gradingCompany);

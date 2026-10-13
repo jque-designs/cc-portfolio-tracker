@@ -278,8 +278,11 @@ export function pickAsset(itemName: string, hits: AltSearchHit[]): AltSearchHit 
   return bestScore >= 0.75 ? best : null;
 }
 
-export async function findAssetByName(itemName: string): Promise<AltSearchHit | null> {
-  return pickAsset(itemName, await searchAssets(searchText(itemName)));
+/** The matching alt.xyz card, plus the top search results so a miss can say what alt.xyz does have. */
+export async function findAssetByName(itemName: string): Promise<{ hit: AltSearchHit | null; nearest: string[] }> {
+  const hits = await searchAssets(searchText(itemName));
+  const nearest = hits.slice(0, 3).map((h) => `${h.name ?? h.id}${h.cardNumber ? ` (no. ${h.cardNumber})` : ""}`);
+  return { hit: pickAsset(itemName, hits), nearest };
 }
 
 export function researchUrl(assetId: string): string {
