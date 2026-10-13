@@ -1,9 +1,16 @@
-import { fetchJson } from "./http";
+import { HttpError, PublicError, fetchJson } from "./http";
 
+/**
+ * The Solana RPC endpoint. HELIUS_API_KEY may hold the bare key or the whole
+ * "https://mainnet.helius-rpc.com/?api-key=..." URL that Helius's dashboard shows.
+ */
 export function rpcUrl(): string | null {
-  if (process.env.SOLANA_RPC_URL) return process.env.SOLANA_RPC_URL;
-  if (process.env.HELIUS_API_KEY) return `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
-  return null;
+  const custom = process.env.SOLANA_RPC_URL?.trim();
+  if (custom) return custom;
+  const key = process.env.HELIUS_API_KEY?.trim();
+  if (!key) return null;
+  if (/^https?:\/\//i.test(key)) return key;
+  return `https://mainnet.helius-rpc.com/?api-key=${encodeURIComponent(key)}`;
 }
 
 export function isValidSolanaAddress(s: string): boolean {
@@ -28,16 +35,25 @@ export async function getCollectorCryptMints(owner: string): Promise<string[]> {
   const mints: string[] = [];
   for (let page = 1; page <= 50; page++) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r = await fetchJson<any>(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: "cc",
-        method: "getAssetsByOwner",
-        params: { ownerAddress: owner, page, limit: 1000, displayOptions: { showFungible: false } },
-      }),
-    });
+    let r: any;
+    try {
+      r = await fetchJson(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: "cc",
+          method: "getAssetsByOwner",
+          params: { ownerAddress: owner, page, limit: 1000, displayOptions: { showFungible: false } },
+        }),
+      });
+    } catch (e) {
+      if (e instanceof HttpError && (e.status === 401 || e.status === 403))
+        throw new PublicError("The Solana RPC rejected this site's API key. Check HELIUS_API_KEY in the Vercel project settings.");
+      if (e instanceof HttpError && e.status === 429)
+        throw new PublicError("The Solana RPC is rate limiting this site right now. Try again in a minute.");
+      throw e;
+    }
     if (r.error) throw new Error(`RPC error: ${r.error.message ?? JSON.stringify(r.error)}`);
     const items: DasAsset[] = r.result?.items ?? [];
     for (const a of items) {

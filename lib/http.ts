@@ -1,10 +1,26 @@
 const UA = "cc-portfolio-tracker/0.1 (+https://github.com/jque-designs/cc-portfolio-tracker)";
 
-export class HttpError extends Error {
-  constructor(public status: number, public url: string, body: string) {
-    super(`HTTP ${status} from ${url}: ${body.slice(0, 200)}`);
+/** Origin and path only. Query strings carry API keys (Helius puts its key there), so they never go in messages. */
+export function safeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return "(upstream URL)";
   }
 }
+
+export class HttpError extends Error {
+  /** First 200 characters of the response body, for server-side debugging only. */
+  public body: string;
+  constructor(public status: number, url: string, body: string) {
+    super(`HTTP ${status} from ${safeUrl(url)}`);
+    this.body = body.slice(0, 200);
+  }
+}
+
+/** An error whose message is written for the person using the site and is safe to show them. */
+export class PublicError extends Error {}
 
 /** fetch + JSON with a timeout, an honest user-agent and a few retries on 429/5xx. */
 export async function fetchJson<T>(
