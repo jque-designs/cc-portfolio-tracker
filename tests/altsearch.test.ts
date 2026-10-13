@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pickAsset, searchText } from "../lib/alt";
+import { pickAsset, searchText, shortSearchText } from "../lib/alt";
 
 // Real Collector Crypt item names (2026-10-13).
 const JOLTEON = "2002 Pokemon Neo Destiny Light Jolteon #48 CGC 9 MINT";
@@ -11,6 +11,12 @@ test("search text drops the slab but keeps the card", () => {
   assert.equal(searchText(SHAYMIN), "2017 77a Full Art/Shaymin EX Premium Trainer XY Collection Promo");
   assert.equal(searchText("2025 #081 Team Rocket's Mewtwo EX PSA 10 Dri EN-Destined Rivals Pokemon"), "2025 081 Team Rocket's Mewtwo EX Dri EN-Destined Rivals Pokemon");
   assert.equal(searchText("2024 #FB01139 Son Goku FOIL SCR BGS 10 Dragon Ball Super"), "2024 FB01139 Son Goku FOIL SCR Dragon Ball Super");
+});
+
+test("short search text is the card's own name and number", () => {
+  assert.equal(shortSearchText(JOLTEON), "Light Jolteon 48");
+  assert.equal(shortSearchText("2025 Pokemon Destined Rivals Team Rocket's Mewtwo ex #231 CGC 10"), "Mewtwo ex 231");
+  assert.equal(shortSearchText("2012 #186 Jolteon PSA 9 Japanese Black & White Promo Pokemon"), null);
 });
 
 test("picks the same card, not the 1st edition, a foreign print or a different number", () => {

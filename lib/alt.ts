@@ -279,15 +279,29 @@ export function pickAsset(itemName: string, hits: AltSearchHit[]): AltSearchHit 
 }
 
 /** The matching alt.xyz card, plus the top search results so a miss can say what alt.xyz does have. */
+/** A narrower query, the card's own name and number: "... Neo Destiny Light Jolteon #48" -> "Light Jolteon 48". */
+export function shortSearchText(itemName: string): string | null {
+  const m = itemName.match(/((?:[A-Za-z][\w'.-]*\s+){1,2})#\s*([A-Za-z0-9-]+)/);
+  return m ? `${m[1].trim()} ${m[2]}` : null;
+}
+
 export async function findAssetByName(itemName: string): Promise<{ hit: AltSearchHit | null; nearest: string[] }> {
-  const hits = await searchAssets(searchText(itemName));
+  let hits = await searchAssets(searchText(itemName));
+  let hit = pickAsset(itemName, hits);
+  // Foreign prints can crowd the plain card out of the first page; try once more with just the card.
+  const short = shortSearchText(itemName);
+  if (!hit && short) {
+    const more = await searchAssets(short);
+    hits = [...hits, ...more.filter((m) => !hits.some((h) => h.id === m.id))];
+    hit = pickAsset(itemName, hits);
+  }
   // Same-print results first, so the note shows a near miss rather than three foreign editions.
   const want = new Set(words(itemName));
   const samePrint = hits.filter((h) => !VARIANTS.some((v) => words(h.name ?? "").includes(v) !== want.has(v)));
   const nearest = [...samePrint, ...hits.filter((h) => !samePrint.includes(h))]
     .slice(0, 3)
     .map((h) => `${h.name ?? h.id}${h.cardNumber ? ` (no. ${h.cardNumber})` : ""}`);
-  return { hit: pickAsset(itemName, hits), nearest };
+  return { hit, nearest };
 }
 
 export function researchUrl(assetId: string): string {
