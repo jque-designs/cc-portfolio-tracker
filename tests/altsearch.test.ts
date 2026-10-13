@@ -13,13 +13,16 @@ test("search text drops the slab but keeps the card", () => {
   assert.equal(searchText("2024 #FB01139 Son Goku FOIL SCR BGS 10 Dragon Ball Super"), "2024 FB01139 Son Goku FOIL SCR Dragon Ball Super");
 });
 
-test("picks the same card, not the 1st edition or a different number", () => {
+test("picks the same card, not the 1st edition, a foreign print or a different number", () => {
   const hits = [
+    // alt.xyz's real name for the German print, which the first live check wrongly picked.
+    { id: "german", name: "2002 Pokemon Neo Destiny German Light Jolteon #48", year: 2002 },
     { id: "first-ed", name: "2002 Pokemon Neo Destiny 1st Edition Light Jolteon #48", year: 2002, cardNumber: "48" },
     { id: "holo", name: "2002 Pokemon Neo Destiny Light Jolteon #12", year: 2002, cardNumber: "12" },
-    { id: "right", name: "2002 Pokemon Neo Destiny Light Jolteon #48", year: 2002, cardNumber: "048" },
+    { id: "right", name: "2002 Pokemon Neo Destiny Light Jolteon #48", year: 2002, cardNumber: "48/105" },
   ];
   assert.equal(pickAsset(JOLTEON, hits)?.id, "right");
+  assert.equal(pickAsset(JOLTEON, hits.slice(0, 3)), null);
 });
 
 test("rejects weak or mismatched hits", () => {

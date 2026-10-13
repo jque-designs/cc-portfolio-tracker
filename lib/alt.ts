@@ -191,7 +191,7 @@ export interface AltSearchHit {
   externalTransactionCount?: number;
 }
 
-export async function searchAssets(text: string, limit = 10): Promise<AltSearchHit[]> {
+export async function searchAssets(text: string, limit = 25): Promise<AltSearchHit[]> {
   const cfg = await getSearchConfig();
   const node = cfg.clientConfig.nodes[0];
   const qs = new URLSearchParams({ q: text, query_by: "name,subject,brand,cardNumber", per_page: String(limit) });
@@ -220,10 +220,36 @@ const words = (s: string) =>
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
 
-const bareNumber = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/^0+(?=.)/, "");
+// "048", "48" and "48/105" are the same card number.
+const bareNumber = (s: string) =>
+  s
+    .split("/")[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .replace(/^0+(?=.)/, "");
 
 // A hit with one of these is a different print from the plain card unless the item says so too.
-const VARIANTS = ["1st", "shadowless", "reverse", "japanese", "staff", "prerelease", "error"];
+const VARIANTS = [
+  "1st",
+  "shadowless",
+  "reverse",
+  "staff",
+  "prerelease",
+  "error",
+  // Foreign-language prints: the live check matched a CGC 9 English Jolteon to the German one.
+  "japanese",
+  "german",
+  "french",
+  "italian",
+  "spanish",
+  "portuguese",
+  "dutch",
+  "polish",
+  "korean",
+  "chinese",
+  "thai",
+  "indonesian",
+];
 
 /**
  * The search hit that is the same card as the Collector Crypt item, or null. Card number and
