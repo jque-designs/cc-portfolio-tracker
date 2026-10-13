@@ -281,7 +281,12 @@ export function pickAsset(itemName: string, hits: AltSearchHit[]): AltSearchHit 
 /** The matching alt.xyz card, plus the top search results so a miss can say what alt.xyz does have. */
 export async function findAssetByName(itemName: string): Promise<{ hit: AltSearchHit | null; nearest: string[] }> {
   const hits = await searchAssets(searchText(itemName));
-  const nearest = hits.slice(0, 3).map((h) => `${h.name ?? h.id}${h.cardNumber ? ` (no. ${h.cardNumber})` : ""}`);
+  // Same-print results first, so the note shows a near miss rather than three foreign editions.
+  const want = new Set(words(itemName));
+  const samePrint = hits.filter((h) => !VARIANTS.some((v) => words(h.name ?? "").includes(v) !== want.has(v)));
+  const nearest = [...samePrint, ...hits.filter((h) => !samePrint.includes(h))]
+    .slice(0, 3)
+    .map((h) => `${h.name ?? h.id}${h.cardNumber ? ` (no. ${h.cardNumber})` : ""}`);
   return { hit: pickAsset(itemName, hits), nearest };
 }
 
