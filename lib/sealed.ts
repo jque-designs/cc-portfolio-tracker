@@ -77,11 +77,13 @@ const tokens = (s: string) =>
 
 /** Find the TCGplayer set (group) for a CollectorCrypt sealed item. */
 export function matchGroup(item: Pick<CCItem, "productCode" | "set" | "itemName">, groups: TcgGroup[]): TcgGroup | null {
-  const code = (item.productCode ?? "").trim().toLowerCase();
+  // CollectorCrypt writes "EB-03" where TCGplayer writes "EB03", so compare letters and digits only.
+  const bare = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const code = bare(item.productCode ?? "");
   if (code) {
-    const byPrefix = groups.find((g) => g.name.toLowerCase().startsWith(`${code}:`));
+    const byPrefix = groups.find((g) => bare(g.name.split(":")[0]) === code && g.name.includes(":"));
     if (byPrefix) return byPrefix;
-    const byAbbr = groups.find((g) => (g.abbreviation ?? "").toLowerCase() === code);
+    const byAbbr = groups.find((g) => bare(g.abbreviation ?? "") === code);
     if (byAbbr) return byAbbr;
   }
   // Fall back to word overlap between the item name and the set name.

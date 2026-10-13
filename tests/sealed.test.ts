@@ -52,6 +52,25 @@ test("set name fallback when there is no product code", () => {
   assert.equal(matchGroup({ itemName: "Delta Reign Booster Box", productCode: null, set: null }, groups)?.groupId, 24831);
 });
 
+test("product codes match with or without a hyphen (One Piece EB-03)", () => {
+  // Real rows: tcgcsv.com One Piece groups and CollectorCrypt's EB-03 box record, 2026-10-13.
+  const op = [
+    { groupId: 24820, name: "Extra Booster: One Piece Heroines Edition Vol. 2", abbreviation: "EB05" },
+    { groupId: 24545, name: "Extra Booster: One Piece Heroines Edition", abbreviation: "EB03" },
+    { groupId: 23333, name: "Extra Booster: Memorial Collection", abbreviation: "EB01" },
+  ];
+  const eb03 = { itemName: "EB-03 One Piece Booster Box", productCode: "EB-03", set: "Heroines Edition", format: "Box", packCount: null };
+  assert.equal(matchGroup(eb03, op)?.groupId, 24545);
+  const q = (productId: number, name: string) => ({ productId, name, url: "", groupId: 24545 });
+  const sealed = [
+    q(666727, "Extra Booster: One Piece Heroines Edition Pack"),
+    q(666891, "Extra Booster: One Piece Heroines Edition Box"),
+    q(666892, "Extra Booster: One Piece Heroines Edition Box Case"),
+  ];
+  assert.equal(matchProduct(eb03, sealed)?.productId, 666891);
+  assert.equal(matchGroup({ ...box, productCode: "ME-01" }, groups)?.groupId, 24380);
+});
+
 test("category routing", () => {
   assert.deepEqual(categoryIds("Pokemon", "English"), [3, 85]);
   assert.deepEqual(categoryIds("Pokemon", "Japanese"), [85, 3]);
