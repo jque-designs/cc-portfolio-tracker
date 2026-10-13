@@ -1,4 +1,4 @@
-import { getAltValue, getSales, historyFromSales, lookupCert, normaliseCompany, normaliseGrade, researchUrl, valueFromSales } from "./alt";
+import { findAssetByName, getAltValue, getSales, historyFromSales, lookupCert, normaliseCompany, normaliseGrade, researchUrl, valueFromSales } from "./alt";
 import { getItems, getOwnerRecords } from "./collectorcrypt";
 import { mapPool } from "./http";
 import { categoryIds, getGroups, getHistory, getMarketPrices, getProducts, matchGroup, matchProduct } from "./sealed";
@@ -19,26 +19,45 @@ function insuredOnly(item: CCItem, note?: string): ValuedItem {
 
 export async function valueGraded(item: CCItem): Promise<ValuedItem> {
   if (!item.gradingID || !item.gradingCompany) return insuredOnly(item, "Not graded");
+  // alt.xyz is trading cards only, and a name search would happily match a comic to a card.
+  if ((item.type ?? "").toLowerCase() === "comic") return insuredOnly(item, "No market source for graded comics yet");
   const cert = await lookupCert(item.gradingID);
-  if (!cert) return insuredOnly(item, "Cert not found on alt.xyz");
-  const company = cert.gradingCompany || normaliseCompany(item.gradingCompany);
-  const grade = cert.gradeNumber || normaliseGrade(item.gradeNum ?? item.grade) || "";
+  let assetId: string;
+  let assetName: string;
+  let company: string;
+  let grade: string;
+  let note: string | undefined;
+  if (cert) {
+    ({ assetId, assetName } = cert);
+    company = cert.gradingCompany || normaliseCompany(item.gradingCompany);
+    grade = cert.gradeNumber || normaliseGrade(item.gradeNum ?? item.grade) || "";
+  } else {
+    // alt.xyz doesn't know many CGC certs, so find the card by name and use the slab's own grade.
+    const hit = await findAssetByName(item.itemName);
+    grade = normaliseGrade(item.gradeNum ?? item.grade) ?? "";
+    if (!hit || !grade) return insuredOnly(item, "Not found on alt.xyz by cert number or card name");
+    assetId = hit.id;
+    assetName = hit.name ?? item.itemName;
+    company = normaliseCompany(item.gradingCompany);
+    note = "alt.xyz doesn't know this cert number, so the card was matched by name.";
+  }
   const [altValue, sales] = await Promise.all([
-    getAltValue(cert.assetId, company, grade),
-    getSales(cert.assetId, company, grade).catch(() => []),
+    getAltValue(assetId, company, grade),
+    getSales(assetId, company, grade).catch(() => []),
   ]);
   const history = historyFromSales(sales);
   const fromSales = valueFromSales(sales, Date.now());
   const marketValue = altValue ?? fromSales;
-  if (marketValue === null) return insuredOnly(item, "No alt.xyz value or sales for this grade");
+  if (marketValue === null) return insuredOnly(item, `No alt.xyz value or sales for ${company} ${grade}`);
   if (altValue !== null) history.push({ t: Date.now(), v: altValue });
   return {
     ...item,
     marketValue,
     source: altValue !== null ? "alt" : "alt-sales",
-    sourceUrl: researchUrl(cert.assetId),
-    matchedName: `${cert.assetName} · ${company} ${grade}`,
+    sourceUrl: researchUrl(assetId),
+    matchedName: `${assetName} · ${company} ${grade}`,
     history,
+    note,
   };
 }
 

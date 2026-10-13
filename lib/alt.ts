@@ -152,6 +152,110 @@ export function historyFromSales(sales: Sale[]): PricePoint[] {
   return days.map((t) => ({ t, v: valueFromSales(sales, t)! }));
 }
 
+/**
+ * Name search, for graded cards whose cert alt.xyz doesn't know (often CGC). alt.xyz's site
+ * searches a Typesense index with a short-lived read key that SearchServiceConfig hands to
+ * every visitor (shape from github.com/samaygodika/pokemon-psa10-history).
+ */
+const Q_SEARCH_CONFIG = `
+query SearchServiceConfig {
+  serviceConfig { search { assetSearch {
+    clientConfig { nodes { host port protocol } apiKey }
+    collectionName expiresAt
+  } } }
+}`;
+
+interface SearchConfig {
+  clientConfig: { nodes: { host: string; port: number; protocol: string }[]; apiKey: string };
+  collectionName: string;
+  expiresAt: number; // unix seconds
+}
+
+let searchConfig: SearchConfig | null = null;
+
+async function getSearchConfig(): Promise<SearchConfig> {
+  if (searchConfig && searchConfig.expiresAt - 60 > Date.now() / 1000) return searchConfig;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const d = await gql<any>("SearchServiceConfig", Q_SEARCH_CONFIG, {});
+  const cfg = d?.serviceConfig?.search?.assetSearch as SearchConfig | undefined;
+  if (!cfg?.clientConfig?.nodes?.length) throw new Error("alt.xyz search config missing");
+  searchConfig = cfg;
+  return cfg;
+}
+
+export interface AltSearchHit {
+  id: string;
+  name?: string;
+  year?: number | string;
+  cardNumber?: string;
+  externalTransactionCount?: number;
+}
+
+export async function searchAssets(text: string, limit = 10): Promise<AltSearchHit[]> {
+  const cfg = await getSearchConfig();
+  const node = cfg.clientConfig.nodes[0];
+  const qs = new URLSearchParams({ q: text, query_by: "name,subject,brand,cardNumber", per_page: String(limit) });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = await fetchJson<any>(`${node.protocol}://${node.host}:${node.port}/collections/${cfg.collectionName}/documents/search?${qs}`, {
+    headers: { "x-typesense-api-key": cfg.clientConfig.apiKey, origin: "https://alt.xyz" },
+    revalidate: 86_400,
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (r.hits ?? []).map((h: any) => h.document as AltSearchHit);
+}
+
+/** Collector Crypt's item name without the slab: "... Light Jolteon #48 CGC 9 MINT" -> "... Light Jolteon 48". */
+export function searchText(itemName: string): string {
+  return itemName
+    .replace(/\b(PSA|BGS|CGC|SGC|Beckett)\s+\d+(\.\d+)?(\s+(GEM[\s-]*MT|GEM MINT|MINT|NM-MT|PRISTINE|PERFECT))?\b/gi, " ")
+    .replace(/#/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const words = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+
+const bareNumber = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/^0+(?=.)/, "");
+
+// A hit with one of these is a different print from the plain card unless the item says so too.
+const VARIANTS = ["1st", "shadowless", "reverse", "japanese", "staff", "prerelease", "error"];
+
+/**
+ * The search hit that is the same card as the Collector Crypt item, or null. Card number and
+ * year must agree when both sides have them, a variant word on only one side rules a hit
+ * out, and at least three quarters of the hit's name must appear in the item name.
+ */
+export function pickAsset(itemName: string, hits: AltSearchHit[]): AltSearchHit | null {
+  const want = new Set(words(searchText(itemName)));
+  const number = itemName.match(/#\s*([A-Za-z0-9-]+)/)?.[1];
+  const year = itemName.match(/\b(19|20)\d{2}\b/)?.[0];
+  let best: AltSearchHit | null = null;
+  let bestScore = 0;
+  for (const h of hits) {
+    if (!h?.id || !h.name) continue;
+    if (number && h.cardNumber && bareNumber(h.cardNumber) !== bareNumber(number)) continue;
+    if (year && h.year && String(h.year) !== year) continue;
+    const have = words(h.name);
+    if (!have.length || VARIANTS.some((v) => have.includes(v) !== want.has(v))) continue;
+    const score = have.filter((w) => want.has(w)).length / have.length;
+    const busier = (h.externalTransactionCount ?? 0) > (best?.externalTransactionCount ?? 0);
+    if (score > bestScore || (score === bestScore && busier)) {
+      best = h;
+      bestScore = score;
+    }
+  }
+  return bestScore >= 0.75 ? best : null;
+}
+
+export async function findAssetByName(itemName: string): Promise<AltSearchHit | null> {
+  return pickAsset(itemName, await searchAssets(searchText(itemName)));
+}
+
 export function researchUrl(assetId: string): string {
   return `https://alt.xyz/research/${assetId}`;
 }
