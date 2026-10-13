@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DAY, PERIODS, itemChange, portfolioChange, portfolioSeries } from "@/lib/pnl";
 import type { Portfolio, ValuedItem } from "@/lib/types";
+import { ThemeToggle } from "./ThemeToggle";
 import { ValueChart } from "./ValueChart";
 import { pct, signedUsd, tone, usd } from "./format";
 
@@ -126,7 +127,10 @@ export default function Home() {
 
   return (
     <main className="wrap">
-      <h1>CollectorCrypt Portfolio</h1>
+      <div className="header">
+        <h1>CollectorCrypt Portfolio</h1>
+        <ThemeToggle />
+      </div>
       <p className="sub">Market value and PnL for your vaulted cards and sealed products. Graded cards are priced from alt.xyz, sealed products from TCGplayer.</p>
 
       <form
