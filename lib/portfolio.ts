@@ -1,8 +1,8 @@
 import { getAltValue, getSales, historyFromSales, lookupCert, normaliseCompany, normaliseGrade, researchUrl, valueFromSales } from "./alt";
-import { getItems, getListedByOwner } from "./collectorcrypt";
+import { getItems, getOwnerRecords } from "./collectorcrypt";
 import { mapPool } from "./http";
 import { categoryIds, getGroups, getHistory, getMarketPrices, getProducts, matchGroup, matchProduct } from "./sealed";
-import { getCollectorCryptMints, rpcUrl } from "./solana";
+import { type WalletScan, rpcUrl, scanWallet } from "./solana";
 import type { CCItem, Portfolio, ValuedItem } from "./types";
 
 function insuredOnly(item: CCItem, note?: string): ValuedItem {
@@ -76,17 +76,43 @@ export async function valueItem(item: CCItem): Promise<ValuedItem> {
   }
 }
 
+/**
+ * The wallet's CollectorCrypt items. The on-chain scan decides what the wallet holds.
+ * CollectorCrypt's records fill in items the scan's filter doesn't recognise (a new mint
+ * format, as happened with Core assets), but only when the wallet really holds them.
+ */
+export async function mergeHoldings(
+  scan: WalletScan,
+  records: CCItem[],
+  lookup: (mints: string[]) => Promise<CCItem[]>,
+): Promise<{ items: CCItem[]; recordsOnly: number }> {
+  const known = new Map(records.filter((r) => scan.held.has(r.nftAddress)).map((r) => [r.nftAddress, r]));
+  const looked = await lookup([...new Set(scan.matched)].filter((m) => !known.has(m)));
+  const matched = new Set(scan.matched);
+  const recordsOnly = [...known.keys()].filter((m) => !matched.has(m)).length;
+  return { items: [...known.values(), ...looked], recordsOnly };
+}
+
 export async function buildPortfolio(wallet: string): Promise<Portfolio> {
   const warnings: string[] = [];
   let items: CCItem[];
   if (rpcUrl()) {
-    const mints = await getCollectorCryptMints(wallet);
-    items = await getItems(mints);
+    const [scan, records] = await Promise.all([
+      scanWallet(wallet),
+      getOwnerRecords(wallet).catch((e) => {
+        console.warn("CollectorCrypt owner records failed:", (e as Error).message);
+        return [] as CCItem[];
+      }),
+    ]);
+    const merged = await mergeHoldings(scan, records, getItems);
+    // Worth a look in the logs: the on-chain filter is missing a kind of CollectorCrypt asset.
+    if (merged.recordsOnly) console.info(`holdings: ${merged.recordsOnly} item(s) found only through CollectorCrypt's records`);
+    items = merged.items;
   } else {
     warnings.push(
-      "No Solana RPC is configured, so only items listed on the CollectorCrypt marketplace are shown. Set HELIUS_API_KEY to see the whole wallet.",
+      "No Solana RPC is configured, so holdings come from Collector Crypt's own records, which can lag behind recent transfers. Set HELIUS_API_KEY to read the wallet on-chain.",
     );
-    items = await getListedByOwner(wallet);
+    items = await getOwnerRecords(wallet);
   }
   const valued = await mapPool(items, 6, valueItem);
   return { wallet, fetchedAt: Date.now(), items: valued, warnings };

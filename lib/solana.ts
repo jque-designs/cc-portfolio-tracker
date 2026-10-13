@@ -17,22 +17,44 @@ export function isValidSolanaAddress(s: string): boolean {
   return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s);
 }
 
-interface DasAsset {
+/**
+ * Update authorities and collection keys CollectorCrypt mints under. Older items are pNFTs
+ * with the symbol "COLLECTOR"; items vaulted since mid-2026 are Metaplex Core assets with no
+ * symbol, Arweave metadata and CollectorCrypt's authority on them (checked on-chain 2026-10-13).
+ */
+export const CC_AUTHORITIES = new Set([
+  "CCryptUfeFSZ3Fgc9FLeKrhLVAP67FSqi1GuVoj9CRac", // Core assets
+  "DQPERZ9e86pNJ4mhUnCEP8V75yxZofsipoVrRWT5Wdxd", // legacy pNFTs
+]);
+
+export interface DasAsset {
   id: string;
   burnt?: boolean;
   content?: { json_uri?: string; metadata?: { name?: string; symbol?: string } };
   grouping?: { group_key: string; group_value: string }[];
+  authorities?: { address: string }[];
 }
 
-/**
- * Mints in the wallet that look like CollectorCrypt items. CollectorCrypt NFTs carry the
- * symbol "COLLECTOR" (seen on-chain for the ME01 booster box); every candidate is then
- * confirmed against CollectorCrypt's own catalogue by the caller.
- */
-export async function getCollectorCryptMints(owner: string): Promise<string[]> {
+export function isCollectorCryptAsset(a: DasAsset): boolean {
+  if (a.burnt) return false;
+  if (a.content?.metadata?.symbol?.toUpperCase() === "COLLECTOR") return true;
+  if (a.content?.json_uri?.includes("collectorcrypt")) return true;
+  if (a.grouping?.some((g) => g.group_key === "collection" && CC_AUTHORITIES.has(g.group_value))) return true;
+  return a.authorities?.some((x) => CC_AUTHORITIES.has(x.address)) ?? false;
+}
+
+export interface WalletScan {
+  /** Every asset the wallet holds. */
+  held: Set<string>;
+  /** The ones that look like CollectorCrypt items; the caller confirms them against CollectorCrypt. */
+  matched: string[];
+}
+
+export async function scanWallet(owner: string): Promise<WalletScan> {
   const url = rpcUrl();
   if (!url) throw new Error("No Solana RPC configured");
-  const mints: string[] = [];
+  const held = new Set<string>();
+  const matched: string[] = [];
   for (let page = 1; page <= 50; page++) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let r: any;
@@ -58,11 +80,10 @@ export async function getCollectorCryptMints(owner: string): Promise<string[]> {
     const items: DasAsset[] = r.result?.items ?? [];
     for (const a of items) {
       if (a.burnt) continue;
-      const sym = a.content?.metadata?.symbol?.toUpperCase() ?? "";
-      const uri = a.content?.json_uri ?? "";
-      if (sym === "COLLECTOR" || uri.includes("collectorcrypt")) mints.push(a.id);
+      held.add(a.id);
+      if (isCollectorCryptAsset(a)) matched.push(a.id);
     }
     if (items.length < 1000) break;
   }
-  return mints;
+  return { held, matched };
 }

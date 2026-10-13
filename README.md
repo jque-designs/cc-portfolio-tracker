@@ -13,7 +13,7 @@ vault (real catalogue items, made-up prices) so the UI can be tried without a wa
 
 | What | Source |
 | --- | --- |
-| Holdings | Solana DAS `getAssetsByOwner` (items with the `COLLECTOR` symbol), confirmed against `api.collectorcrypt.com/cards/publicNft/:mint`. Without an RPC key, only marketplace-listed items are shown. |
+| Holdings | Solana DAS `getAssetsByOwner`, keeping legacy pNFTs (symbol `COLLECTOR`) and Core assets under CollectorCrypt's authority, confirmed against `api.collectorcrypt.com/cards/publicNft/:mint`. CollectorCrypt's own owner records (`/marketplace?ownerAddress=`) fill gaps for anything the wallet holds on-chain. Without an RPC key, those records are used on their own. |
 | Insured value | CollectorCrypt catalogue (`insuredValue`). |
 | Graded cards | alt.xyz: cert number -> asset, then Alt Value, falling back to the median of the last three sales in that grade. History comes from the sales. |
 | Sealed products | TCGplayer market price via [tcgcsv.com](https://tcgcsv.com). The CollectorCrypt `productCode` (e.g. `ME01`) maps to the TCGplayer set, and the format/name to the SKU. History comes from TCGplayer's price-history endpoint (daily for the last month, weekly for a year). |

@@ -52,10 +52,11 @@ export async function getItems(mints: string[]): Promise<CCItem[]> {
 }
 
 /**
- * Items the wallet has listed on the CollectorCrypt marketplace. The browse endpoint only
- * returns listed items, so this is a partial view used when no Solana RPC is configured.
+ * CollectorCrypt's own record of what a wallet holds, listed or not (checked live 2026-10-13:
+ * a wallet with 20 items, 19 unlisted, returned all 20). It can lag behind on-chain transfers,
+ * so when an RPC is configured the wallet scan has the final say.
  */
-export async function getListedByOwner(wallet: string): Promise<CCItem[]> {
+export async function getOwnerRecords(wallet: string): Promise<CCItem[]> {
   const out: CCItem[] = [];
   let cursor: string | undefined;
   for (let page = 0; page < 20; page++) {
