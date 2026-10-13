@@ -1,9 +1,20 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import "@fontsource/instrument-serif/400.css";
+import "@fontsource/instrument-serif/400-italic.css";
+import "@fontsource-variable/dm-sans";
+import "@fontsource-variable/jetbrains-mono";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CC Portfolio Tracker",
-  description: "Market value and PnL for your CollectorCrypt cards and sealed products.",
+  title: "Vault Ledger · Collector Crypt portfolio value",
+  description: "Market value and performance for every Collector Crypt slab, card and sealed box in a Solana wallet.",
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0d0e10" },
+    { media: "(prefers-color-scheme: light)", color: "#ece8e1" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,9 +1,13 @@
-# CC Portfolio Tracker
+# Vault Ledger
 
 Enter a Solana wallet and see the market value and PnL of everything it holds on
 [CollectorCrypt](https://collectorcrypt.com): graded cards, sealed booster boxes, blisters
 and the rest, with daily, weekly, monthly, yearly or custom-period performance per item
 and for the whole portfolio.
+
+The look borrows from Collector Crypt's new site: dark by default with a light theme, the
+retro five-band stripe, a serif for big numbers and mono labels. `/?demo=1` opens a sample
+vault (real catalogue items, made-up prices) so the UI can be tried without a wallet.
 
 ## Where the numbers come from
 

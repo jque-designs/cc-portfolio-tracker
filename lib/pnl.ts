@@ -69,7 +69,9 @@ export function portfolioChange(items: ValuedItem[], from: number): PortfolioCha
 
 /** Daily total portfolio value from `from` to `to`, valuing each item from its own series. */
 export function portfolioSeries(items: ValuedItem[], from: number, to: number): PricePoint[] {
-  const step = to - from > 400 * DAY ? 7 * DAY : DAY;
+  // Daily for short periods; weekly beyond four months, where sources only report weekly prices anyway.
+  const span = to - from;
+  const step = span > 800 * DAY ? 14 * DAY : span > 120 * DAY ? 7 * DAY : DAY;
   const out: PricePoint[] = [];
   for (let t = from; t <= to + 1; t += step) {
     let v = 0;
@@ -83,4 +85,19 @@ export function portfolioSeries(items: ValuedItem[], from: number, to: number): 
   // Last point is today's live value.
   out.push({ t: to, v: items.reduce((s, it) => s + (it.marketValue ?? 0), 0) });
   return out;
+}
+
+/** One item's value from `from` to `to`, starting at its value on `from` (or its first known price). */
+export function itemSeries(item: ValuedItem, from: number, to: number): PricePoint[] {
+  if (item.marketValue === null || !item.history.length) return [];
+  const start = valueAt(item.history, from) ?? item.history[0].v;
+  const mid = item.history.filter((p) => p.t > from && p.t < to);
+  return [{ t: from, v: start }, ...mid, { t: to, v: item.marketValue }];
+}
+
+/** Timestamp of the oldest price point across the items, or null when none has history. */
+export function earliestPoint(items: ValuedItem[]): number | null {
+  let t: number | null = null;
+  for (const it of items) if (it.history.length && (t === null || it.history[0].t < t)) t = it.history[0].t;
+  return t;
 }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DAY, itemChange, portfolioChange, valueAt } from "../lib/pnl";
+import { DAY, earliestPoint, itemChange, itemSeries, portfolioChange, valueAt } from "../lib/pnl";
 import { historyFromSales, valueFromSales } from "../lib/alt";
 import type { ValuedItem } from "../lib/types";
 
@@ -43,4 +43,15 @@ test("sales-based value uses the median of the last three recent sales", () => {
   assert.equal(valueFromSales(sales, now - 200 * DAY), 50); // nothing recent: last sale
   assert.equal(valueFromSales(sales, now - 400 * DAY), null);
   assert.equal(historyFromSales(sales).length, 4);
+});
+
+test("item series starts at the period-start value and ends at today's value", () => {
+  const a = item(300, [{ t: now - 40 * DAY, v: 250 }, { t: now - 10 * DAY, v: 280 }, { t: now - DAY, v: 290 }]);
+  assert.deepEqual(
+    itemSeries(a, now - 30 * DAY, now).map((p) => p.v),
+    [250, 280, 290, 300],
+  );
+  assert.equal(itemSeries(a, now - 500 * DAY, now)[0].v, 250);
+  assert.deepEqual(itemSeries(item(50, []), now - 30 * DAY, now), []);
+  assert.equal(earliestPoint([a, item(50, [])]), now - 40 * DAY);
 });
