@@ -45,3 +45,10 @@ test("ties go to the asset with more recorded sales", () => {
   ];
   assert.equal(pickAsset(JOLTEON, hits)?.id, "busy");
 });
+
+test("pickAsset skips alt.xyz's misspelled Portuguese prints", () => {
+  const hit = pickAsset("2020 #200 Full Art/Marnie CGC 10 Sword & Shield Pokemon", [
+    { id: "pt", name: "2020 Pokemon Sword and Shield Portugeuse Marnie Full Art Ur #200", cardNumber: "200", year: 2020 },
+  ]);
+  assert.equal(hit, null);
+});

@@ -243,6 +243,7 @@ const VARIANTS = [
   "italian",
   "spanish",
   "portuguese",
+  "portugeuse", // alt.xyz's own misspelling, seen live on a CGC 10 Marnie
   "dutch",
   "polish",
   "korean",
