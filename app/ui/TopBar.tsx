@@ -4,8 +4,8 @@ import { IconWallet } from "./icons";
 import { BrandMark } from "./Stripes";
 import { ThemeToggle } from "./ThemeToggle";
 
-export const TopBar = forwardRef<HTMLInputElement, { wallet: string | null; onOpen: ((w: string) => void) | null }>(
-  function TopBar({ wallet, onOpen }, ref) {
+export const TopBar = forwardRef<HTMLInputElement, { wallet: string | null; onOpen: ((w: string) => void) | null; current?: "vault" | "deals" }>(
+  function TopBar({ wallet, onOpen, current = "vault" }, ref) {
     const [value, setValue] = useState(wallet ?? "");
     useEffect(() => setValue(wallet ?? ""), [wallet]);
 
@@ -46,6 +46,14 @@ export const TopBar = forwardRef<HTMLInputElement, { wallet: string | null; onOp
             )}
           </div>
           <div className="topbar-actions">
+            <nav className="topnav" aria-label="Sections">
+              <a href="/" aria-current={current === "vault" ? "page" : undefined}>
+                Vault
+              </a>
+              <a href="/deals" aria-current={current === "deals" ? "page" : undefined}>
+                Deals
+              </a>
+            </nav>
             <ThemeToggle />
           </div>
         </div>
