@@ -3,7 +3,7 @@ import type { CCItem } from "./types";
 
 const API = "https://api.collectorcrypt.com";
 
-function authHeaders(): Record<string, string> {
+export function authHeaders(): Record<string, string> {
   const key = process.env.COLLECTORCRYPT_API_KEY;
   return key ? { authorization: `Bearer ${key}` } : {};
 }

@@ -17,33 +17,46 @@ function insuredOnly(item: CCItem, note?: string): ValuedItem {
   };
 }
 
-export async function valueGraded(item: CCItem): Promise<ValuedItem> {
-  if (!item.gradingID || !item.gradingCompany) return insuredOnly(item, "Not graded");
+export type AltMatch =
+  | { ok: true; assetId: string; assetName: string; company: string; grade: string; note?: string }
+  | { ok: false; note: string };
+
+/** The alt.xyz card and grade for a graded Collector Crypt item: by cert number, else by card name. */
+export async function resolveAltAsset(item: CCItem): Promise<AltMatch> {
+  if (!item.gradingID || !item.gradingCompany) return { ok: false, note: "Not graded" };
   // alt.xyz is trading cards only, and a name search would happily match a comic to a card.
-  if ((item.type ?? "").toLowerCase() === "comic") return insuredOnly(item, "No market source for graded comics yet");
+  if ((item.type ?? "").toLowerCase() === "comic") return { ok: false, note: "No market source for graded comics yet" };
   const cert = await lookupCert(item.gradingID);
-  let assetId: string;
-  let assetName: string;
-  let company: string;
-  let grade: string;
-  let note: string | undefined;
   if (cert) {
-    ({ assetId, assetName } = cert);
-    company = cert.gradingCompany || normaliseCompany(item.gradingCompany);
-    grade = cert.gradeNumber || normaliseGrade(item.gradeNum ?? item.grade) || "";
-  } else {
-    // alt.xyz doesn't know many CGC certs, so find the card by name and use the slab's own grade.
-    const { hit, nearest } = await findAssetByName(item.itemName);
-    grade = normaliseGrade(item.gradeNum ?? item.grade) ?? "";
-    if (!hit || !grade) {
-      const closest = nearest.length ? ` Closest alt.xyz cards: ${nearest.join("; ")}.` : "";
-      return insuredOnly(item, `Not found on alt.xyz by cert number or card name.${closest}`);
-    }
-    assetId = hit.id;
-    assetName = hit.name ?? item.itemName;
-    company = normaliseCompany(item.gradingCompany);
-    note = "alt.xyz doesn't know this cert number, so the card was matched by name.";
+    return {
+      ok: true,
+      assetId: cert.assetId,
+      assetName: cert.assetName,
+      company: cert.gradingCompany || normaliseCompany(item.gradingCompany),
+      grade: cert.gradeNumber || normaliseGrade(item.gradeNum ?? item.grade) || "",
+    };
   }
+  // alt.xyz doesn't know many CGC certs, so find the card by name and use the slab's own grade.
+  const { hit, nearest } = await findAssetByName(item.itemName);
+  const grade = normaliseGrade(item.gradeNum ?? item.grade) ?? "";
+  if (!hit || !grade) {
+    const closest = nearest.length ? ` Closest alt.xyz cards: ${nearest.join("; ")}.` : "";
+    return { ok: false, note: `Not found on alt.xyz by cert number or card name.${closest}` };
+  }
+  return {
+    ok: true,
+    assetId: hit.id,
+    assetName: hit.name ?? item.itemName,
+    company: normaliseCompany(item.gradingCompany),
+    grade,
+    note: "alt.xyz doesn't know this cert number, so the card was matched by name.",
+  };
+}
+
+export async function valueGraded(item: CCItem): Promise<ValuedItem> {
+  const match = await resolveAltAsset(item);
+  if (!match.ok) return insuredOnly(item, match.note);
+  const { assetId, assetName, company, grade, note } = match;
   const [altValue, sales] = await Promise.all([
     getAltValue(assetId, company, grade),
     getSales(assetId, company, grade).catch(() => []),
